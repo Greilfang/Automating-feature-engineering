@@ -67,7 +67,7 @@ $$
 
       
 
-![](D:\课程文档\SE_LAB\Federated_Learning\automating-feature-engineering\img\simple_way.png)
+![](.\img\simple_way.png)
 
 ### Hierarchical Exploration of Feature Transformations
 
@@ -93,7 +93,7 @@ $\lambda(D_0,D_1)$ refers to the transformation function $T$ makes $D_0 \to D_1$
 
 >  the best solution is always among one of the nodes
 
-![DAG](D:\课程文档\SE_LAB\Federated_Learning\automating-feature-engineering\img\DAG.png)
+![DAG](.\img\DAG.png)
 
 ### Transformation Graph Exploration
 
