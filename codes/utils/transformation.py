@@ -1,13 +1,28 @@
 # 这个文件是用来定义各种对feature 的变换
-def hi():
-    pass
+
+#储存每个MLP的数据集
+TransformationDataSets={
+    'sum':{'data':[],'target':[],'name':'sum'},
+    'subtraction':{'data':[],'target':[],'name':'subtraction'},
+    'multiplication':{'data':[],'target':[],'name':'multiplication'},
+    'division':{'data':[],'target':[],'name':'devision'},
+    'log':{'data':[],'target':[],'name':'log'},
+    'frequency':{'data':[],'target':[],'name':'frequency'},
+    'square':{'data':[],'target':[],'name':'square'},
+    'round':{'data':[],'target':[],'name':'round'},
+    'tanh':{'data':[],'target':[],'name':'tanh'},
+    'sigmoid':{'data':[],'target':[],'name':'sigmoid'},
+    'isotonic_regression':{'data':[],'target':[],'name':'isotomic_regression'},
+    'zscore':{'data':[],'target':[],'name':'zscore'},
+    'normalization':{'data':[],'target':[],'name':'normalization'},
+}
 class transformations:
     def __init__(self):
         self.binary_transformation_map={
             'sum':None,
             'subtraction':None,
             'multiplication':None,
-            'devision':None
+            'division':None
         }
         self.unary_transformation_map={
             'log':None,
@@ -20,7 +35,6 @@ class transformations:
             'isotonic_regression':None,
             'zscore':None,
             'normalization':None
-
         }
 
 
