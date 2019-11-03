@@ -51,8 +51,8 @@ def generate_binary_training_samples(TransformationDataSets,Transformations,Orig
     for sample in range(SampleNum):
         f1,f2 = random.sample([i for i in range(col_num)],2)
         feature_1,feature_2=OriginalSet['data'][:,f1],OriginalSet['data'][:,f2]
-        #遍历每一种变换，为每一个MLP增加训练样本
-        for trans_name,trans_verb in Transformations.binary_transformation_map.values():
+        #遍历每一种变换，为每一个二元MLP增加训练样本
+        for trans_name,trans_verb in Transformations.binary_transformation_map.keys(),Transformations.binary_transformation_map.values():
             feature_t=trans_verb(feature_1,feature_2)
             QuantifiedSketchVector=getSketch(feature_t,BinNum,ClassNum,OriginalSet['target'])
             #产生转化后的数据集
@@ -60,15 +60,44 @@ def generate_binary_training_samples(TransformationDataSets,Transformations,Orig
             EstimatedTrainSet,EstimatedTestSet=splitDataSet(EstimatedSet,0.8)
 
             BenchClassifier.fit(EstimatedSet['data'],EstimatedSet['target'])
-            EstimatedScore=BenchClassifier.score(EstimatedTrainSet,EstimatedTestSet)
+            EstimatedScore=BenchClassifier.score(EstimatedTestSet['data'],EstimatedTestSet['target'])
             TransformationDataSets[trans_name]['data'].append(QuantifiedSketchVector)
             if EstimatedScore-BenchScore > Improvement:
                 TransformationDataSets[trans_name]['target'].append(UsefulTag)
             else:
                 TransformationDataSets[trans_name]['target'].append(UselessTag)
+    return TransformationDataSets
 
-def generate_unary_training_samples(OriginalSet,BinNum,SampleNum):
-    pass
+def generate_unary_training_samples(TransformationDataSets,Transformations,OriginalSet,BinNum,SampleNum,Improvement):
+    #分割数据集为训练集和测试集
+    OriginalTrainSet,OriginalTestSet=splitDataSet(OriginalSet,0.8)
+    #计算基准准确率
+    BenchClassifier = RandomForestClassifier(n_estimators=10)
+    BenchClassifier.fit(OriginalTrainSet['data'],OriginalTrainSet['target'])
+    BenchScore = BenchClassifier.score(OriginalTestSet['data'],OriginalTestSet['target'])
+    #两个标签,左边是有用,右边是无用
+    UsefulTag,UselessTag = [1,0],[0,1]
+    col_num = OriginalSet['data'].shape[1]
+    ClassNum = len(np.unique(OriginalSet['target']))
+    for sample in range(SampleNum):
+        f = random.sample([i for i in range(col_num)],1)
+        feature=OriginalSet['data'][:,f]
+        #遍历每一种变换,为每一个一元MLP增加样本
+        for trans_name,trans_verb in Transformations.unary_transformation_map.keys(),Transformations.unary_transformation_map.values():
+            feature_t=trans_verb(feature)
+            QuantifiedSketchVector=getSketch(feature_t,BinNUm,ClassNum,OriginalSet['target'])
+            #产生转化后的数据集
+            EsitimatedSet=getTransformedSet(OriginalSet,[f],col_num)
+
+            BenchClassifier.fit(EstimatedSet['data'],EstimatedSet['target'])
+            EstimatedScore=BenchClassifier.score(EstimatedTestSet['data'],EstimatedTestSet['target'])
+            if EstimatedScore-BenchScore > Improvement:
+                TransformationDataSets[trans_name]['target'].append(UsefulTag)
+            else:
+                TransformationDataSets[trans_name]['target'].append(UselessTag)
+    return TransformationDataSets
+
+
 
 
 a=np.array([[1,2,3],[4,5,6],[7,8,9]])

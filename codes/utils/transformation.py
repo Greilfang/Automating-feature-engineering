@@ -1,5 +1,5 @@
 # 这个文件是用来定义各种对feature 的变换
-
+from sklearn.neural_network import MLPRegressor
 #储存每个MLP的数据集
 TransformationDataSets={
     'sum':{'data':[],'target':[],'name':'sum'},
@@ -36,7 +36,22 @@ class transformations:
             'zscore':None,
             'normalization':None
         }
+        self.binary_MLPs={}
+        self.unary_MLPs={}
+        #初始化MLP感知器用于训练
+        for tran in self.binary_transformation_map.keys():
+            self.binary_MLPs[tran]=MLPRegressor(
+                hidden_layer_sizes=(400),  activation='relu', solver='adam', alpha=0.0001, batch_size='auto',
+                learning_rate='constant', learning_rate_init=0.001, power_t=0.5, max_iter=5000, shuffle=True,
+                random_state=1, tol=0.0001, verbose=False, warm_start=False, momentum=0.9, nesterovs_momentum=True,
+                early_stopping=False,beta_1=0.9, beta_2=0.999, epsilon=1e-08)
 
+        for tran in self.unary_transformation_map.keys():
+            self.unary_MLPs[tran]=MLPRegressor(
+                hidden_layer_sizes=(400),  activation='relu', solver='adam', alpha=0.0001, batch_size='auto',
+                learning_rate='constant', learning_rate_init=0.001, power_t=0.5, max_iter=5000, shuffle=True,
+                random_state=1, tol=0.0001, verbose=False, warm_start=False, momentum=0.9, nesterovs_momentum=True,
+                early_stopping=False,beta_1=0.9, beta_2=0.999, epsilon=1e-08)
 
     '''
     in: 一个ndarray的2列(m×1)
