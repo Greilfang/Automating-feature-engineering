@@ -85,11 +85,11 @@ def generate_unary_training_samples(TransformationDataSets,Transformations,Origi
         #遍历每一种变换,为每一个一元MLP增加样本
         for trans_name,trans_verb in Transformations.unary_transformation_map.keys(),Transformations.unary_transformation_map.values():
             feature_t=trans_verb(feature)
-            QuantifiedSketchVector=getSketch(feature_t,BinNUm,ClassNum,OriginalSet['target'])
+            QuantifiedSketchVector=getSketch(feature_t,BinNum,ClassNum,OriginalSet['target'])
             #产生转化后的数据集
-            EsitimatedSet=getTransformedSet(OriginalSet,[f],col_num)
-
-            BenchClassifier.fit(EstimatedSet['data'],EstimatedSet['target'])
+            EstimatedSet=getTransformedSet(OriginalSet,[f],col_num)
+            EstimatedTrainSet,EstimatedTestSet=splitDataSet(EstimatedSet,0.8)
+            BenchClassifier.fit(EstimatedTrainSet['data'],EstimatedTrainSet['target'])
             EstimatedScore=BenchClassifier.score(EstimatedTestSet['data'],EstimatedTestSet['target'])
             if EstimatedScore-BenchScore > Improvement:
                 TransformationDataSets[trans_name]['target'].append(UsefulTag)
