@@ -1,10 +1,11 @@
 import numpy as np
 from sklearn.neural_network import MLPClassifier
-from utils.ReadRecords import read_data_features
+from utils.ReadRecords import read_data_features,save_transformations
 from utils.transformation import transformations
 from sklearn.ensemble import RandomForestClassifier
 import random
 import copy
+import pickle
 
 # 设置超参数
 hyparams = {
@@ -125,7 +126,6 @@ def generate_unary_training_samples(Transformations, OriginalSet, BinNum, Sample
 
 '''
 调用一元变化和二元变化产生函数,为每个变化产生训练样本
-
 '''
 
 
@@ -141,6 +141,21 @@ def generate_training_samples(Transformations, OriginalSet, hyperparms=hyparams)
 def convert(DemoSets):
     return None
 
+'''
+def save_transformations(Transformations, path):
+    assert(isinstance(Transformations, transformations))
+    with open(path,'w') as file:
+        pickle.dump(Transformations, file)
+
+
+def load_transformations(path):
+    with open(path,'r') as file:
+        Transformations = pickle.load(path)
+    
+    assert(isinstance(Transformations, transformations))
+    return Transformations
+'''
+
 
 if __name__ == "__main__":
     DemoDataSets = read_data_features('utils/CleanedData.csv')
@@ -150,8 +165,8 @@ if __name__ == "__main__":
     Transformations = transformations()
     Transformations.load_transformations()
     # 产生数据集
+    if OriginalSet is not None:
+        generate_training_samples(Transformations=transformations,OriginalSet=OriginalSet)
 
-    generate_training_samples(
-        Transformations=transformations, 
-        OriginalSet=OriginalSet
-        )
+    save_transformations(Transformations, path='model/transformations')
+
