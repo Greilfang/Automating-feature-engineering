@@ -1,2 +1,4 @@
 # dataset
 *.csv
+# config
+*.idea
