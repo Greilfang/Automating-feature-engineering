@@ -1,8 +1,40 @@
 # 这个文件是用来定义各种对feature 的变换
-from sklearn.neural_network import MLPRegressor
+from sklearn.neural_network import MLPClassifier
+from sklearn.ensemble import RandomForestClassifier
+import numpy as np
+import random
+
+
+def getSketch(feature_t, BinNum, cls_num, classes):
+    QuantifiedSketchVector = np.zeros((BinNum, cls_num))
+    Supr, Infr = max(feature_t), min(feature_t)
+    Blank = Supr-Infr
+    for fvalue, cvalue in feature_t, classes:
+        idx = int((fvalue-Infr)/Blank*BinNum)
+        QuantifiedSketchVector[idx,
+                               cvalue] = QuantifiedSketchVector[idx, cvalue]+1
+    return QuantifiedSketchVector
+
+
+def splitDataSet(DataSet, ratio):
+    rows = DataSet['data'].shape[0]
+    train_num = int(rows * ratio)
+    TrainSet, TestSet = {}, {}
+    TrainSet['data'] = DataSet['data'][:train_num]
+    TrainSet['target'] = DataSet['target'][train_num:]
+    TestSet['data'] = DataSet['data'][train_num:]
+    TestSet['target'] = DataSet['target'][train_num:]
+    return TrainSet, TestSet
+
+
+def getTransformedSet(DataSet, features, feature_t):
+    EstimatedSet = copy.deepcopy(DataSet)
+    EstimatedSet['data'] = np.delete(EstimatedSet['data'], features, axis=1)
+    EstimatedSet['data'] = np.insert(
+        EstimatedSet['data'], 0, values=feature_t, axis=1)
+    return EstimatedSet
+
 # 储存每个MLP的数据集
-
-
 class transformations:
     def __init__(self):
         self.DataSets = {
@@ -44,25 +76,109 @@ class transformations:
         self.unary_MLPs = {}
         # 初始化MLP感知器用于训练
         for tran in self.binary_transformation_map.keys():
-            self.binary_MLPs[tran] = MLPRegressor(
+            self.binary_MLPs[tran] = MLPClassifier(
                 hidden_layer_sizes=(400),  activation='relu', solver='adam', alpha=0.0001, batch_size='auto',
                 learning_rate='constant', learning_rate_init=0.001, power_t=0.5, max_iter=5000, shuffle=True,
                 random_state=1, tol=0.0001, verbose=False, warm_start=False, momentum=0.9, nesterovs_momentum=True,
                 early_stopping=False, beta_1=0.9, beta_2=0.999, epsilon=1e-08)
 
         for tran in self.unary_transformation_map.keys():
-            self.unary_MLPs[tran] = MLPRegressor(
+            self.unary_MLPs[tran] = MLPClassifier(
                 hidden_layer_sizes=(400),  activation='relu', solver='adam', alpha=0.0001, batch_size='auto',
                 learning_rate='constant', learning_rate_init=0.001, power_t=0.5, max_iter=5000, shuffle=True,
                 random_state=1, tol=0.0001, verbose=False, warm_start=False, momentum=0.9, nesterovs_momentum=True,
                 early_stopping=False, beta_1=0.9, beta_2=0.999, epsilon=1e-08)
+
+    def generate_unary_training_samples(self, OriginalSet, BinNum, SampleNum, Improvement):
+        # 分割数据集为训练集和测试集
+        OriginalTrainSet, OriginalTestSet = splitDataSet(OriginalSet, 0.8)
+        # 计算基准准确率
+        BenchClassifier = RandomForestClassifier(n_estimators=10)
+        BenchClassifier.fit(OriginalTrainSet['data'], OriginalTrainSet['target'])
+        BenchScore = BenchClassifier.score(
+            OriginalTestSet['data'], OriginalTestSet['target'])
+        # 两个标签,左边是有用,右边是无用
+        UsefulTag, UselessTag = [1, 0], [0, 1]
+        col_num = OriginalSet['data'].shape[1]
+        ClassNum = len(np.unique(OriginalSet['target']))
+        for sample in range(SampleNum):
+            f = random.sample([i for i in range(col_num)], 1)
+            feature = OriginalSet['data'][:, f]
+            # 遍历每一种变换,为每一个一元MLP增加样本
+            for trans_name, trans_verb in self.unary_transformation_map.keys(), self.unary_transformation_map.values():
+                feature_t = trans_verb(feature)
+                QuantifiedSketchVector = getSketch(
+                    feature_t, BinNum, ClassNum, OriginalSet['target'])
+                # 产生转化后的数据集
+                EstimatedSet = getTransformedSet(OriginalSet, [f], col_num)
+                EstimatedTrainSet, EstimatedTestSet = splitDataSet(
+                    EstimatedSet, 0.8)
+                BenchClassifier.fit(
+                    EstimatedTrainSet['data'], EstimatedTrainSet['target'])
+                EstimatedScore = BenchClassifier.score(
+                    EstimatedTestSet['data'], EstimatedTestSet['target'])
+                self.DataSets[trans_name]['data'].append(
+                    QuantifiedSketchVector)
+                if EstimatedScore-BenchScore > Improvement:
+                    self.DataSets[trans_name]['target'].append(
+                        UsefulTag)
+                else:
+                    self.DataSets[trans_name]['target'].append(
+                        UselessTag)
+
+    def generate_binary_training_samples(self, OriginalSet, BinNum, SampleNum, Improvement):
+        # 分割数据集为训练集和测试集
+        OriginalTrainSet, OriginalTestSet = splitDataSet(OriginalSet, 0.8)
+        # 计算基准准确率
+        BenchClassifier = RandomForestClassifier(n_estimators=10)
+        BenchClassifier.fit(OriginalTrainSet['data'], OriginalTrainSet['target'])
+        BenchScore = BenchClassifier.score(
+            OriginalTestSet['data'], OriginalTestSet['target'])
+        # 两个标签,左边是有用,右边是无用
+        UsefulTag, UselessTag = [1, 0], [0, 1]
+        col_num = OriginalSet['data'].shape[1]
+        ClassNum = len(np.unique(OriginalSet['target']))
+        for sample in range(SampleNum):
+            f1, f2 = random.sample([i for i in range(col_num)], 2)
+            feature_1, feature_2 = OriginalSet['data'][:,
+                                                    f1], OriginalSet['data'][:, f2]
+            # 遍历每一种变换，为每一个二元MLP增加训练样本
+            for trans_name, trans_verb in self.binary_transformation_map.keys(), self.binary_transformation_map.values():
+                feature_t = trans_verb(feature_1, feature_2)
+                QuantifiedSketchVector = getSketch(
+                    feature_t, BinNum, ClassNum, OriginalSet['target'])
+                # 产生转化后的数据集
+                EstimatedSet = getTransformedSet(OriginalSet, [f1, f2], col_num)
+                EstimatedTrainSet, EstimatedTestSet = splitDataSet(
+                    EstimatedSet, 0.8)
+
+                BenchClassifier.fit(
+                    EstimatedTrainSet['data'], EstimatedTrainSet['target'])
+                EstimatedScore = BenchClassifier.score(
+                    EstimatedTestSet['data'], EstimatedTestSet['target'])
+                self.DataSets[trans_name]['data'].append(
+                    QuantifiedSketchVector)
+                if EstimatedScore-BenchScore > Improvement:
+                    self.DataSets[trans_name]['target'].append(UsefulTag)
+                else:
+                    self.DataSets[trans_name]['target'].append(UselessTag)
+    
+    def generate_training_samples(self, OriginalSet, hyparams):
+        BinNum, SampleNum, Improvement = hyparams['bin_num'], hyparams['sample_num'], hyparams['improvement']
+        self.generate_binary_training_samples(OriginalSet, BinNum, SampleNum, Improvement)
+        self.generate_unary_training_samples(OriginalSet, BinNum, SampleNum, Improvement)
+
+    
+
+
+
+
 
     '''
     in: 一个ndarray的2列(m×1)
     out: 一个m×1 的 1 列
     description: 2列每个元素对应相加
     '''
-
     def sum(self, column_1, column_2):
         pass
     '''
@@ -164,7 +280,7 @@ class transformations:
     def normalize(self, column):
         pass
 
-    def load_transformations(self):
+    def upload(self):
         self.unary_transformation_map['sum'] = self.sum
         self.unary_transformation_map['substraction'] = self.substract
         self.unary_transformation_map['multiplication'] = self.multiply
