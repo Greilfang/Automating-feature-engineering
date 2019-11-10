@@ -10,7 +10,7 @@ import pickle
 hyparams = {
     'bin_num': 10,
     'improvement': 0.01,
-    'sample_num': 10000,
+    'sample_num': 100,
     'raw_root':'./raw'
 }
 
@@ -24,6 +24,6 @@ if __name__ == "__main__":
 
     # 产生数据集
     for OriginalSet in OriginalSets:
+        print('SetName:',OriginalSet['name'])
         Transformations.generate_training_samples(OriginalSet=OriginalSet,hyparams=hyparams)
-
-    save_transformations(Transformations, path='model/transformations')
+    save_transformations(Transformations, path='./model/transformations')

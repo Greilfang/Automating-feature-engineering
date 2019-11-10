@@ -33,16 +33,15 @@ def convert(root):
         print(csv)
         path = root +'/'+csv
         if os.path.isfile(path) and os.path.splitext(path)[-1] == '.csv':
-            print('right file')
+            print('csv_name:',path)
             name = os.path.splitext(csv)[0]
             df=pd.read_csv(path)
             shuffle(df)
             OriginalSet = {
                 'data':df.values[:,0:-1],
-                'target':df.values[:,-1],
+                'target':df.values[:,-1].astype('int'),
                 'name':name,
                 'attributes':list(df.columns)
                 }
-            print(OriginalSet)
             OriginalSets.append(OriginalSet)
     return OriginalSets
