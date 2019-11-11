@@ -203,7 +203,7 @@ class transformations:
             trans_set['data']=list(map(lambda x: x.flatten(),trans_set['data']))
             trans_set['data']=np.array(trans_set['data'])
         
-        trans_set['target']=np.array(tans_set('target'))
+        trans_set['target']=np.array(trans_set('target'))
 
     
 
