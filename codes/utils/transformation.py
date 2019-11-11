@@ -13,7 +13,9 @@ def getSketch(feature_t, BinNum, cls_num, classes):
     QuantifiedSketchVector = np.zeros((cls_num,BinNum+1))
     Supr, Infr = max(feature_t), min(feature_t)
     Blank = Supr-Infr
+    #print(Supr,'si',Infr)
     for fvalue, cvalue in zip(feature_t, classes):
+        #print(fvalue,'fv',cvalue)
         idx = int((fvalue-Infr)/Blank*BinNum)
         QuantifiedSketchVector[cvalue,idx] = QuantifiedSketchVector[cvalue,idx]+1
     QuantifiedSketchVector = np.delete(QuantifiedSketchVector, -1, axis=1)
@@ -49,6 +51,7 @@ class transformations:
             'log': {'data': [], 'target': [], 'name': 'log'},
             'frequency': {'data': [], 'target': [], 'name': 'frequency'},
             'square': {'data': [], 'target': [], 'name': 'square'},
+            'square_root': {'data': [], 'target': [], 'name': 'square_root'},
             'round': {'data': [], 'target': [], 'name': 'round'},
             'tanh': {'data': [], 'target': [], 'name': 'tanh'},
             'sigmoid': {'data': [], 'target': [], 'name': 'sigmoid'},
@@ -67,8 +70,8 @@ class transformations:
         self.unary_transformation_map = {
             'log': None,
             'square_root': None,
+            'square':None,
             'frequency': None,
-            'square': None,
             'round': None,
             'tanh': None,
             'sigmoid': None,
@@ -94,6 +97,7 @@ class transformations:
                 early_stopping=False, beta_1=0.9, beta_2=0.999, epsilon=1e-08)
 
     def generate_unary_training_samples(self, OriginalSet, BinNum, SampleNum, Improvement):
+        num=0
         # 分割数据集为训练集和测试集
         OriginalTrainSet, OriginalTestSet = splitDataSet(OriginalSet, 0.8)
         # 计算基准准确率
@@ -107,14 +111,18 @@ class transformations:
         col_num = OriginalSet['data'].shape[1]
         ClassNum = len(np.unique(OriginalSet['target']))
         for sample in range(SampleNum):
-            f = random.sample([i for i in range(col_num)], 1)
+            f = random.sample([i for i in range(col_num)], 1)[0]
             feature = OriginalSet['data'][:, f]
             # 遍历每一种变换,为每一个一元MLP增加样本
             if sample % 10 ==0:
                 print('Trained Samples: ',sample)
-            
+                print('positive_num:',num)            
             for trans_name, trans_verb in self.unary_transformation_map.items():
+                print('verb:',trans_verb)
+                print('feature:',feature)
                 feature_t = trans_verb(feature)
+                if len(feature_t) == 0:
+                    continue
                 QuantifiedSketchVector = getSketch(
                     feature_t, BinNum, ClassNum, OriginalSet['target'])
                 # 产生转化后的数据集
@@ -131,12 +139,14 @@ class transformations:
                 if EstimatedScore-BenchScore > Improvement:
                     self.DataSets[trans_name]['target'].append(UsefulTag)
                     print('trans_name:',trans_name[:3],'useful:',sample,'score',EstimatedScore)
+                    num=num+1
                 else:
                     self.DataSets[trans_name]['target'].append(UselessTag)
                     print('trans_name:',trans_name[:3],'useful:',sample,'score',EstimatedScore)
     
     
     def generate_binary_training_samples(self, OriginalSet, BinNum, SampleNum, Improvement):
+        num=0
         # 分割数据集为训练集和测试集
         OriginalTrainSet, OriginalTestSet = splitDataSet(OriginalSet, 0.8)
         # 计算基准准确率
@@ -154,10 +164,11 @@ class transformations:
             # 遍历每一种变换，为每一个二元MLP增加训练样本
             if sample % 10 ==0:
                 print('Trained Samples:',sample)
+                print('positive_num:',num)
                             
             for trans_name, trans_verb in self.binary_transformation_map.items():
                 feature_t = trans_verb(feature_1, feature_2)
-                if feature_t is None:
+                if len(feature_t)==0:
                     continue
                 QuantifiedSketchVector = getSketch(
                     feature_t, BinNum, ClassNum, OriginalSet['target'])
@@ -176,6 +187,7 @@ class transformations:
                 if EstimatedScore-BenchScore > Improvement:
                     self.DataSets[trans_name]['target'].append(UsefulTag)
                     print('trans_name:',trans_name[:3],'√',sample,'score',EstimatedScore)
+                    num=num+1
                 else:
                     self.DataSets[trans_name]['target'].append(UselessTag)
                     print('trans_name:',trans_name[:3],'×',sample,'score',EstimatedScore)
@@ -183,15 +195,15 @@ class transformations:
     
     def generate_training_samples(self, OriginalSet, hyparams):
         BinNum, SampleNum, Improvement = hyparams['bin_num'], hyparams['sample_num'], hyparams['improvement']
-        self.generate_binary_training_samples(OriginalSet, BinNum, SampleNum, Improvement)
         self.generate_unary_training_samples(OriginalSet, BinNum, SampleNum, Improvement)
+        self.generate_binary_training_samples(OriginalSet, BinNum, SampleNum, Improvement)
 
         #对数据集内数据进行重新设置维数使其输入mlp
         for trans_name,trans_set in self.DataSets.items():
             trans_set['data']=list(map(lambda x: x.flatten(),trans_set['data']))
             trans_set['data']=np.array(trans_set['data'])
         
-        trans_set['target']=np.array('target')
+        trans_set['target']=np.array(tans_set('target'))
 
     
 
@@ -228,9 +240,9 @@ class transformations:
     '''
 
     def divide(self, column_1, column_2):
-        if np.any(column_2==0) == False:
+        if np.all(column_2!=0):
             return column_1/column_2
-        return None
+        return []
     '''
     in:  一个ndarray 的1列(m×1)
     out: 一个m×1 的 1 列
@@ -238,17 +250,23 @@ class transformations:
     '''
 
     def log(self, column):
-        if np.any(column>0):
+        if np.all(column>0):
             return np.log2(column)
-        return None
+        return []
+    '''
+    in:  一个ndarray 的1列(m×1)
+    out: 一个m×1 的 1 列
+    description: 2列每个元素绝对值对应求平方根
+    '''
+    def square_root(self, column):
+        return np.sqrt(np.abs(column))
     '''
     in:  一个ndarray 的1列(m×1)
     out: 一个m×1 的 1 列
     description: 2列每个元素对应求平方根,负值对绝对值求平方根加符号,例如square_root(-9)=-3
     '''
-
-    def square_root(self, column):
-        return np.sqrt(np.abs(x)) * np.sign(x)
+    def square(self, column):
+        return np.sqrt(np.abs(column)) * np.sign(column)
     '''
     in:  一个ndarray 的1列(m×1)
     out: 一个m×1 的 1 列
@@ -301,7 +319,7 @@ class transformations:
         stv = np.std(column)
         if stv!=0:
             return (column-mv)/stv
-        return None
+        return []
     '''
     in:  一个ndarray 的1列(m×1),
     out: 一个m×1 的 1 列
@@ -310,15 +328,18 @@ class transformations:
 
     def normalize(self, column):
         maxv,minv=np.max(column),np.min(column)
-        return -1 + 2/(maxv-maxv) * (column-minv)
+        return -1 + 2/(maxv-minv) * (column-minv)
 
     def upload(self):
         self.binary_transformation_map['sum'] = self.sum
         self.binary_transformation_map['substraction'] = self.substract
         self.binary_transformation_map['multiplication'] = self.multiply
         self.binary_transformation_map['division'] = self.divide
+
+
         self.unary_transformation_map['log'] = self.log
-        self.unary_transformation_map['square'] = self.square_root
+        self.unary_transformation_map['square_root'] = self.square_root
+        self.unary_transformation_map['square']=self.square
         self.unary_transformation_map['frequency'] = self.round
         self.unary_transformation_map['round'] = self.round
         self.unary_transformation_map['tanh'] = self.tanh
@@ -328,5 +349,4 @@ class transformations:
         self.unary_transformation_map['normalization'] = self.normalize
         print('load successfully')
 
-#Transformations = transformations()
-# Transformations.load_transformations()
+
