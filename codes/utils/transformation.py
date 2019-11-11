@@ -118,8 +118,8 @@ class transformations:
                 print('Trained Samples: ',sample)
                 print('positive_num:',num)            
             for trans_name, trans_verb in self.unary_transformation_map.items():
-                print('verb:',trans_verb)
-                print('feature:',feature)
+                #print('verb:',trans_verb)
+                #print('feature:',feature)
                 feature_t = trans_verb(feature)
                 if len(feature_t) == 0:
                     continue
@@ -186,11 +186,11 @@ class transformations:
                     QuantifiedSketchVector)
                 if EstimatedScore-BenchScore > Improvement:
                     self.DataSets[trans_name]['target'].append(UsefulTag)
-                    print('trans_name:',trans_name[:3],'√',sample,'score',EstimatedScore)
+                    print('trans_name:',trans_name[:3],'Y',sample,'score',EstimatedScore)
                     num=num+1
                 else:
                     self.DataSets[trans_name]['target'].append(UselessTag)
-                    print('trans_name:',trans_name[:3],'×',sample,'score',EstimatedScore)
+                    print('trans_name:',trans_name[:3],'N',sample,'score',EstimatedScore)
 
     
     def generate_training_samples(self, OriginalSet, hyparams):

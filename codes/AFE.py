@@ -9,8 +9,8 @@ import pickle
 # 设置超参数
 hyparams = {
     'bin_num': 10,
-    'improvement': 0.01,
-    'sample_num': 50,
+    'improvement': 0.006,
+    'sample_num': 100,
     'raw_root':'./raw'
 }
 
