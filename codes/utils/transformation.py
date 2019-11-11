@@ -1,18 +1,22 @@
 # 这个文件是用来定义各种对feature 的变换
 from sklearn.neural_network import MLPClassifier
 from sklearn.ensemble import RandomForestClassifier
+from utils.ReadRecords import load_transformations,save_transformations
 import numpy as np
+import pandas as pd
 import random
+import copy
+from sklearn.isotonic import IsotonicRegression
 
 
 def getSketch(feature_t, BinNum, cls_num, classes):
-    QuantifiedSketchVector = np.zeros((BinNum, cls_num))
+    QuantifiedSketchVector = np.zeros((cls_num,BinNum+1))
     Supr, Infr = max(feature_t), min(feature_t)
     Blank = Supr-Infr
-    for fvalue, cvalue in feature_t, classes:
+    for fvalue, cvalue in zip(feature_t, classes):
         idx = int((fvalue-Infr)/Blank*BinNum)
-        QuantifiedSketchVector[idx,
-                               cvalue] = QuantifiedSketchVector[idx, cvalue]+1
+        QuantifiedSketchVector[cvalue,idx] = QuantifiedSketchVector[cvalue,idx]+1
+    QuantifiedSketchVector = np.delete(QuantifiedSketchVector, -1, axis=1)
     return QuantifiedSketchVector
 
 
@@ -21,9 +25,9 @@ def splitDataSet(DataSet, ratio):
     train_num = int(rows * ratio)
     TrainSet, TestSet = {}, {}
     TrainSet['data'] = DataSet['data'][:train_num]
-    TrainSet['target'] = DataSet['target'][train_num:]
+    TrainSet['target'] = DataSet['target'][:train_num].astype('int')
     TestSet['data'] = DataSet['data'][train_num:]
-    TestSet['target'] = DataSet['target'][train_num:]
+    TestSet['target'] = DataSet['target'][train_num:].astype('int')
     return TrainSet, TestSet
 
 
@@ -39,7 +43,7 @@ class transformations:
     def __init__(self):
         self.DataSets = {
             'sum': {'data': [], 'target': [], 'name': 'sum'},
-            'subtraction': {'data': [], 'target': [], 'name': 'subtraction'},
+            'substraction': {'data': [], 'target': [], 'name': 'substraction'},
             'multiplication': {'data': [], 'target': [], 'name': 'multiplication'},
             'division': {'data': [], 'target': [], 'name': 'devision'},
             'log': {'data': [], 'target': [], 'name': 'log'},
@@ -56,7 +60,7 @@ class transformations:
 
         self.binary_transformation_map = {
             'sum': None,
-            'subtraction': None,
+            'substraction': None,
             'multiplication': None,
             'division': None
         }
@@ -77,14 +81,14 @@ class transformations:
         # 初始化MLP感知器用于训练
         for tran in self.binary_transformation_map.keys():
             self.binary_MLPs[tran] = MLPClassifier(
-                hidden_layer_sizes=(400),  activation='relu', solver='adam', alpha=0.0001, batch_size='auto',
+                hidden_layer_sizes=(256),  activation='relu', solver='adam', alpha=0.0001, batch_size='auto',
                 learning_rate='constant', learning_rate_init=0.001, power_t=0.5, max_iter=5000, shuffle=True,
                 random_state=1, tol=0.0001, verbose=False, warm_start=False, momentum=0.9, nesterovs_momentum=True,
                 early_stopping=False, beta_1=0.9, beta_2=0.999, epsilon=1e-08)
 
         for tran in self.unary_transformation_map.keys():
             self.unary_MLPs[tran] = MLPClassifier(
-                hidden_layer_sizes=(400),  activation='relu', solver='adam', alpha=0.0001, batch_size='auto',
+                hidden_layer_sizes=(256),  activation='relu', solver='adam', alpha=0.0001, batch_size='auto',
                 learning_rate='constant', learning_rate_init=0.001, power_t=0.5, max_iter=5000, shuffle=True,
                 random_state=1, tol=0.0001, verbose=False, warm_start=False, momentum=0.9, nesterovs_momentum=True,
                 early_stopping=False, beta_1=0.9, beta_2=0.999, epsilon=1e-08)
@@ -97,15 +101,19 @@ class transformations:
         BenchClassifier.fit(OriginalTrainSet['data'], OriginalTrainSet['target'])
         BenchScore = BenchClassifier.score(
             OriginalTestSet['data'], OriginalTestSet['target'])
+        print('unary_benchscore:',BenchScore)
         # 两个标签,左边是有用,右边是无用
-        UsefulTag, UselessTag = [1, 0], [0, 1]
+        UsefulTag, UselessTag = np.array([1, 0]),np.array([0, 1])
         col_num = OriginalSet['data'].shape[1]
         ClassNum = len(np.unique(OriginalSet['target']))
         for sample in range(SampleNum):
             f = random.sample([i for i in range(col_num)], 1)
             feature = OriginalSet['data'][:, f]
             # 遍历每一种变换,为每一个一元MLP增加样本
-            for trans_name, trans_verb in self.unary_transformation_map.keys(), self.unary_transformation_map.values():
+            if sample % 10 ==0:
+                print('Trained Samples: ',sample)
+            
+            for trans_name, trans_verb in self.unary_transformation_map.items():
                 feature_t = trans_verb(feature)
                 QuantifiedSketchVector = getSketch(
                     feature_t, BinNum, ClassNum, OriginalSet['target'])
@@ -113,38 +121,44 @@ class transformations:
                 EstimatedSet = getTransformedSet(OriginalSet, [f], col_num)
                 EstimatedTrainSet, EstimatedTestSet = splitDataSet(
                     EstimatedSet, 0.8)
-                BenchClassifier.fit(
+                EstimatedClassifier = RandomForestClassifier(n_estimators=10)
+                EstimatedClassifier.fit(
                     EstimatedTrainSet['data'], EstimatedTrainSet['target'])
-                EstimatedScore = BenchClassifier.score(
+                EstimatedScore = EstimatedClassifier.score(
                     EstimatedTestSet['data'], EstimatedTestSet['target'])
                 self.DataSets[trans_name]['data'].append(
                     QuantifiedSketchVector)
                 if EstimatedScore-BenchScore > Improvement:
-                    self.DataSets[trans_name]['target'].append(
-                        UsefulTag)
+                    self.DataSets[trans_name]['target'].append(UsefulTag)
+                    print('trans_name:',trans_name[:3],'useful:',sample,'score',EstimatedScore)
                 else:
-                    self.DataSets[trans_name]['target'].append(
-                        UselessTag)
-
+                    self.DataSets[trans_name]['target'].append(UselessTag)
+                    print('trans_name:',trans_name[:3],'useful:',sample,'score',EstimatedScore)
+    
+    
     def generate_binary_training_samples(self, OriginalSet, BinNum, SampleNum, Improvement):
         # 分割数据集为训练集和测试集
         OriginalTrainSet, OriginalTestSet = splitDataSet(OriginalSet, 0.8)
         # 计算基准准确率
         BenchClassifier = RandomForestClassifier(n_estimators=10)
         BenchClassifier.fit(OriginalTrainSet['data'], OriginalTrainSet['target'])
-        BenchScore = BenchClassifier.score(
-            OriginalTestSet['data'], OriginalTestSet['target'])
+        BenchScore = BenchClassifier.score(OriginalTestSet['data'], OriginalTestSet['target'])
+        print('binary_benchscore',BenchScore)
         # 两个标签,左边是有用,右边是无用
-        UsefulTag, UselessTag = [1, 0], [0, 1]
+        UsefulTag, UselessTag = np.array([1, 0]), np.array([0, 1])
         col_num = OriginalSet['data'].shape[1]
         ClassNum = len(np.unique(OriginalSet['target']))
         for sample in range(SampleNum):
             f1, f2 = random.sample([i for i in range(col_num)], 2)
-            feature_1, feature_2 = OriginalSet['data'][:,
-                                                    f1], OriginalSet['data'][:, f2]
+            feature_1, feature_2 = OriginalSet['data'][:,f1], OriginalSet['data'][:, f2]
             # 遍历每一种变换，为每一个二元MLP增加训练样本
-            for trans_name, trans_verb in self.binary_transformation_map.keys(), self.binary_transformation_map.values():
+            if sample % 10 ==0:
+                print('Trained Samples:',sample)
+                            
+            for trans_name, trans_verb in self.binary_transformation_map.items():
                 feature_t = trans_verb(feature_1, feature_2)
+                if feature_t is None:
+                    continue
                 QuantifiedSketchVector = getSketch(
                     feature_t, BinNum, ClassNum, OriginalSet['target'])
                 # 产生转化后的数据集
@@ -152,26 +166,34 @@ class transformations:
                 EstimatedTrainSet, EstimatedTestSet = splitDataSet(
                     EstimatedSet, 0.8)
 
-                BenchClassifier.fit(
+                EstimatedClassifier = RandomForestClassifier(n_estimators=10)
+                EstimatedClassifier.fit(
                     EstimatedTrainSet['data'], EstimatedTrainSet['target'])
-                EstimatedScore = BenchClassifier.score(
+                EstimatedScore = EstimatedClassifier.score(
                     EstimatedTestSet['data'], EstimatedTestSet['target'])
                 self.DataSets[trans_name]['data'].append(
                     QuantifiedSketchVector)
                 if EstimatedScore-BenchScore > Improvement:
                     self.DataSets[trans_name]['target'].append(UsefulTag)
+                    print('trans_name:',trans_name[:3],'√',sample,'score',EstimatedScore)
                 else:
                     self.DataSets[trans_name]['target'].append(UselessTag)
+                    print('trans_name:',trans_name[:3],'×',sample,'score',EstimatedScore)
+
     
     def generate_training_samples(self, OriginalSet, hyparams):
         BinNum, SampleNum, Improvement = hyparams['bin_num'], hyparams['sample_num'], hyparams['improvement']
         self.generate_binary_training_samples(OriginalSet, BinNum, SampleNum, Improvement)
         self.generate_unary_training_samples(OriginalSet, BinNum, SampleNum, Improvement)
 
+        #对数据集内数据进行重新设置维数使其输入mlp
+        for trans_name,trans_set in self.DataSets.items():
+            trans_set['data']=list(map(lambda x: x.flatten(),trans_set['data']))
+            trans_set['data']=np.array(trans_set['data'])
+        
+        trans_set['target']=np.array('target')
+
     
-
-
-
 
 
     '''
@@ -180,7 +202,7 @@ class transformations:
     description: 2列每个元素对应相加
     '''
     def sum(self, column_1, column_2):
-        pass
+        return column_1 + column_2
     '''
     in: 一个ndarray的2列(m×1)
     out: 一个m×1 的 1 列
@@ -188,7 +210,7 @@ class transformations:
     '''
 
     def substract(self, column_1, column_2):
-        pass
+        return column_1-column_2
 
     '''
     in: 一个ndarray的2列(m×1)
@@ -197,7 +219,7 @@ class transformations:
     '''
 
     def multiply(self, column_1, column_2):
-        pass
+        return column_1 * column_2
 
     '''
     in:  一个ndarray的2列(m×1)
@@ -206,7 +228,9 @@ class transformations:
     '''
 
     def divide(self, column_1, column_2):
-        pass
+        if np.any(column_2==0) == False:
+            return column_1/column_2
+        return None
     '''
     in:  一个ndarray 的1列(m×1)
     out: 一个m×1 的 1 列
@@ -214,7 +238,9 @@ class transformations:
     '''
 
     def log(self, column):
-        pass
+        if np.any(column>0):
+            return np.log2(column)
+        return None
     '''
     in:  一个ndarray 的1列(m×1)
     out: 一个m×1 的 1 列
@@ -222,7 +248,7 @@ class transformations:
     '''
 
     def square_root(self, column):
-        pass
+        return np.sqrt(np.abs(x)) * np.sign(x)
     '''
     in:  一个ndarray 的1列(m×1)
     out: 一个m×1 的 1 列
@@ -230,15 +256,15 @@ class transformations:
     '''
 
     def frequency(self, column):
-        pass
+        freq=pd.value_counts(column)
+        return np.array(list(map(lambda x: freq[x],column)))
     '''
     in:  一个ndarray 的1列(m×1)
     out: 一个m×1 的 1 列
     description:每个值对应四舍五入
     '''
-
     def round(self, column):
-        pass
+        return np.round(column).astype('int')
     '''
     in:  一个ndarray 的1列(m×1)
     out: 一个m×1 的 1 列
@@ -246,7 +272,7 @@ class transformations:
     '''
 
     def tanh(self, column):
-        pass
+        return np.tanh(column)
     '''
     in:  一个ndarray 的1列(m×1)
     out: 一个m×1 的 1 列
@@ -254,7 +280,7 @@ class transformations:
     '''
 
     def sigmoid(self, column):
-        pass
+        return(1/(1+np.exp(-column)))
     '''
     in:  一个ndarray 的1列(m×1),
     out: 一个m×1 的 1 列
@@ -262,7 +288,8 @@ class transformations:
     '''
 
     def isotonic_regression(self, column):
-        pass
+        inds=range(column.shape[0])
+        return IsotonicRegression().fit_transform(inds,column)
     '''
     in:  一个ndarray 的1列(m×1),
     out: 一个m×1 的 1 列
@@ -270,7 +297,11 @@ class transformations:
     '''
 
     def zscore(self, column):
-        pass
+        mv=np.mean(column)
+        stv = np.std(column)
+        if stv!=0:
+            return (column-mv)/stv
+        return None
     '''
     in:  一个ndarray 的1列(m×1),
     out: 一个m×1 的 1 列
@@ -278,22 +309,23 @@ class transformations:
     '''
 
     def normalize(self, column):
-        pass
+        maxv,minv=np.max(column),np.min(column)
+        return -1 + 2/(maxv-maxv) * (column-minv)
 
     def upload(self):
-        self.unary_transformation_map['sum'] = self.sum
-        self.unary_transformation_map['substraction'] = self.substract
-        self.unary_transformation_map['multiplication'] = self.multiply
-        self.unary_transformation_map['division'] = self.divide
-        self.binary_transformation_map['log'] = self.log
-        self.binary_transformation_map['square'] = self.square_root
-        self.binary_transformation_map['frequency'] = self.round
-        self.binary_transformation_map['round'] = self.round
-        self.binary_transformation_map['tanh'] = self.tanh
-        self.binary_transformation_map['sigmoid'] = self.sigmoid
-        self.binary_transformation_map['isotonic_regression'] = self.isotonic_regression
-        self.binary_transformation_map['zscore'] = self.zscore
-        self.binary_transformation_map['normalization'] = self.normalize
+        self.binary_transformation_map['sum'] = self.sum
+        self.binary_transformation_map['substraction'] = self.substract
+        self.binary_transformation_map['multiplication'] = self.multiply
+        self.binary_transformation_map['division'] = self.divide
+        self.unary_transformation_map['log'] = self.log
+        self.unary_transformation_map['square'] = self.square_root
+        self.unary_transformation_map['frequency'] = self.round
+        self.unary_transformation_map['round'] = self.round
+        self.unary_transformation_map['tanh'] = self.tanh
+        self.unary_transformation_map['sigmoid'] = self.sigmoid
+        self.unary_transformation_map['isotonic_regression'] = self.isotonic_regression
+        self.unary_transformation_map['zscore'] = self.zscore
+        self.unary_transformation_map['normalization'] = self.normalize
         print('load successfully')
 
 #Transformations = transformations()

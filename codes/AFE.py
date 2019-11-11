@@ -10,7 +10,7 @@ import pickle
 hyparams = {
     'bin_num': 10,
     'improvement': 0.01,
-    'sample_num': 100,
+    'sample_num': 50,
     'raw_root':'./raw'
 }
 
