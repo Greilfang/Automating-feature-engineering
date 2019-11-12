@@ -1,6 +1,7 @@
 # 这个文件是用来定义各种对feature 的变换
 from sklearn.neural_network import MLPClassifier
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import cross_val_score
 from utils.ReadRecords import load_transformations,save_transformations
 import numpy as np
 import pandas as pd
@@ -102,9 +103,7 @@ class transformations:
         OriginalTrainSet, OriginalTestSet = splitDataSet(OriginalSet, 0.8)
         # 计算基准准确率
         BenchClassifier = RandomForestClassifier(n_estimators=10)
-        BenchClassifier.fit(OriginalTrainSet['data'], OriginalTrainSet['target'])
-        BenchScore = BenchClassifier.score(
-            OriginalTestSet['data'], OriginalTestSet['target'])
+        BenchScore = cross_val_score(BenchClassifier, OriginalTestSet['data'], OriginalTestSet['target'], cv=10,scoring='f1').mean()
         print('unary_benchscore:',BenchScore)
         # 两个标签,左边是有用,右边是无用
         UsefulTag, UselessTag = np.array([1, 0]),np.array([0, 1])
@@ -115,8 +114,10 @@ class transformations:
             feature = OriginalSet['data'][:, f]
             # 遍历每一种变换,为每一个一元MLP增加样本
             if sample % 10 ==0:
+                print('-------------------------------------')
                 print('Trained Samples: ',sample)
-                print('positive_num:',num)            
+                print('positive_num:',num)
+                print('-------------------------------------')            
             for trans_name, trans_verb in self.unary_transformation_map.items():
                 #print('verb:',trans_verb)
                 #print('feature:',feature)
@@ -127,22 +128,28 @@ class transformations:
                     feature_t, BinNum, ClassNum, OriginalSet['target'])
                 # 产生转化后的数据集
                 EstimatedSet = getTransformedSet(OriginalSet, [f], col_num)
+
                 EstimatedTrainSet, EstimatedTestSet = splitDataSet(
                     EstimatedSet, 0.8)
+
                 EstimatedClassifier = RandomForestClassifier(n_estimators=10)
                 EstimatedClassifier.fit(
                     EstimatedTrainSet['data'], EstimatedTrainSet['target'])
                 EstimatedScore = EstimatedClassifier.score(
                     EstimatedTestSet['data'], EstimatedTestSet['target'])
-                self.DataSets[trans_name]['data'].append(
-                    QuantifiedSketchVector)
+                    
+                EstimatedClassifier = RandomForestClassifier(n_estimators=10)
+                EstimatedScore = cross_val_score(EstimatedClassifier, EstimatedTestSet['data'], EstimatedTestSet['target'], cv=10,scoring='f1').mean()
+
+
+                self.DataSets[trans_name]['data'].append(QuantifiedSketchVector)
                 if EstimatedScore-BenchScore > Improvement:
                     self.DataSets[trans_name]['target'].append(UsefulTag)
-                    print('trans_name:',trans_name[:3],'useful:',sample,'score',EstimatedScore)
+                    print('trans_name:',trans_name[:3],'Y:',sample,'score',EstimatedScore)
                     num=num+1
                 else:
                     self.DataSets[trans_name]['target'].append(UselessTag)
-                    print('trans_name:',trans_name[:3],'useful:',sample,'score',EstimatedScore)
+                    print('trans_name:',trans_name[:3],'N:',sample,'score',EstimatedScore)
     
     
     def generate_binary_training_samples(self, OriginalSet, BinNum, SampleNum, Improvement):
@@ -151,8 +158,7 @@ class transformations:
         OriginalTrainSet, OriginalTestSet = splitDataSet(OriginalSet, 0.8)
         # 计算基准准确率
         BenchClassifier = RandomForestClassifier(n_estimators=10)
-        BenchClassifier.fit(OriginalTrainSet['data'], OriginalTrainSet['target'])
-        BenchScore = BenchClassifier.score(OriginalTestSet['data'], OriginalTestSet['target'])
+        BenchScore = cross_val_score(BenchClassifier, OriginalTestSet['data'], OriginalTestSet['target'], cv=10,scoring='f1').mean()
         print('binary_benchscore',BenchScore)
         # 两个标签,左边是有用,右边是无用
         UsefulTag, UselessTag = np.array([1, 0]), np.array([0, 1])
@@ -163,8 +169,10 @@ class transformations:
             feature_1, feature_2 = OriginalSet['data'][:,f1], OriginalSet['data'][:, f2]
             # 遍历每一种变换，为每一个二元MLP增加训练样本
             if sample % 10 ==0:
-                print('Trained Samples:',sample)
+                print('-------------------------------------')
+                print('Trained Samples: ',sample)
                 print('positive_num:',num)
+                print('-------------------------------------')      
                             
             for trans_name, trans_verb in self.binary_transformation_map.items():
                 feature_t = trans_verb(feature_1, feature_2)
@@ -176,34 +184,32 @@ class transformations:
                 EstimatedSet = getTransformedSet(OriginalSet, [f1, f2], col_num)
                 EstimatedTrainSet, EstimatedTestSet = splitDataSet(
                     EstimatedSet, 0.8)
-
-                EstimatedClassifier = RandomForestClassifier(n_estimators=10)
-                EstimatedClassifier.fit(
-                    EstimatedTrainSet['data'], EstimatedTrainSet['target'])
-                EstimatedScore = EstimatedClassifier.score(
-                    EstimatedTestSet['data'], EstimatedTestSet['target'])
-                self.DataSets[trans_name]['data'].append(
-                    QuantifiedSketchVector)
+                    
+                    
+                BenchClassifier = RandomForestClassifier(n_estimators=10)
+                BenchScore = cross_val_score(BenchClassifier, OriginalTestSet['data'], OriginalTestSet['target'], cv=10,scoring='f1').mean()
+                
+                self.DataSets[trans_name]['data'].append(QuantifiedSketchVector)
                 if EstimatedScore-BenchScore > Improvement:
                     self.DataSets[trans_name]['target'].append(UsefulTag)
-                    print('trans_name:',trans_name[:3],'Y',sample,'score',EstimatedScore)
+                    print('trans_name:',trans_name[:3],'Y:',sample,'score',EstimatedScore)
                     num=num+1
                 else:
                     self.DataSets[trans_name]['target'].append(UselessTag)
-                    print('trans_name:',trans_name[:3],'N',sample,'score',EstimatedScore)
+                    print('trans_name:',trans_name[:3],'N:',sample,'score',EstimatedScore)
 
     
     def generate_training_samples(self, OriginalSet, hyparams):
-        BinNum, SampleNum, Improvement = hyparams['bin_num'], hyparams['sample_num'], hyparams['improvement']
-        self.generate_unary_training_samples(OriginalSet, BinNum, SampleNum, Improvement)
-        self.generate_binary_training_samples(OriginalSet, BinNum, SampleNum, Improvement)
+        BinNum, UNum,BNum, Improvement = hyparams['bin_num'], hyparams['unary_sample_num'],hyparams['binary_sample_num'],hyparams['improvement']
+        self.generate_unary_training_samples(OriginalSet, BinNum, UNum, Improvement)
+        self.generate_binary_training_samples(OriginalSet, BinNum, BNum, Improvement)
 
         #对数据集内数据进行重新设置维数使其输入mlp
         for trans_name,trans_set in self.DataSets.items():
             trans_set['data']=list(map(lambda x: x.flatten(),trans_set['data']))
             trans_set['data']=np.array(trans_set['data'])
         
-        trans_set['target']=np.array(trans_set('target'))
+        trans_set['target']=np.array(trans_set['target'])
 
     
 
