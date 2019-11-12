@@ -14,7 +14,7 @@ def getSketch(feature_t, BinNum, cls_num, classes):
     QuantifiedSketchVector = np.zeros((cls_num,BinNum+1))
     Supr, Infr = max(feature_t), min(feature_t)
     Blank = Supr-Infr
-    #print(Supr,'si',Infr)
+    if Blank == 0:return None
     for fvalue, cvalue in zip(feature_t, classes):
         #print(fvalue,'fv',cvalue)
         idx = int((fvalue-Infr)/Blank*BinNum)
@@ -98,12 +98,12 @@ class transformations:
                 early_stopping=False, beta_1=0.9, beta_2=0.999, epsilon=1e-08)
 
     def generate_unary_training_samples(self, OriginalSet, BinNum, SampleNum, Improvement):
-        num=0
+        negative_num,positive_num=0,0
         # 分割数据集为训练集和测试集
-        OriginalTrainSet, OriginalTestSet = splitDataSet(OriginalSet, 0.8)
+        #OriginalTrainSet, OriginalTestSet = splitDataSet(OriginalSet, 0.8)
         # 计算基准准确率
         BenchClassifier = RandomForestClassifier(n_estimators=10)
-        BenchScore = cross_val_score(BenchClassifier, OriginalTestSet['data'], OriginalTestSet['target'], cv=10,scoring='f1').mean()
+        BenchScore = cross_val_score(BenchClassifier, OriginalSet['data'], OriginalSet['target'], cv=5,scoring='f1').mean()
         print('unary_benchscore:',BenchScore)
         # 两个标签,左边是有用,右边是无用
         UsefulTag, UselessTag = np.array([1, 0]),np.array([0, 1])
@@ -116,8 +116,9 @@ class transformations:
             if sample % 10 ==0:
                 print('-------------------------------------')
                 print('Trained Samples: ',sample)
-                print('positive_num:',num)
-                print('-------------------------------------')            
+                print('unary_positive_num:',positive_num)
+                print('unary_negative_num:',negative_num)
+                print('-------------------------------------')                
             for trans_name, trans_verb in self.unary_transformation_map.items():
                 #print('verb:',trans_verb)
                 #print('feature:',feature)
@@ -127,38 +128,30 @@ class transformations:
                 QuantifiedSketchVector = getSketch(
                     feature_t, BinNum, ClassNum, OriginalSet['target'])
                 # 产生转化后的数据集
+                if QuantifiedSketchVector is None:
+                    continue
+                
                 EstimatedSet = getTransformedSet(OriginalSet, [f], col_num)
-
-                EstimatedTrainSet, EstimatedTestSet = splitDataSet(
-                    EstimatedSet, 0.8)
-
                 EstimatedClassifier = RandomForestClassifier(n_estimators=10)
-                EstimatedClassifier.fit(
-                    EstimatedTrainSet['data'], EstimatedTrainSet['target'])
-                EstimatedScore = EstimatedClassifier.score(
-                    EstimatedTestSet['data'], EstimatedTestSet['target'])
-                    
-                EstimatedClassifier = RandomForestClassifier(n_estimators=10)
-                EstimatedScore = cross_val_score(EstimatedClassifier, EstimatedTestSet['data'], EstimatedTestSet['target'], cv=10,scoring='f1').mean()
+                EstimatedScore = cross_val_score(EstimatedClassifier, EstimatedSet['data'], EstimatedSet['target'], cv=5,scoring='f1').mean()
 
 
                 self.DataSets[trans_name]['data'].append(QuantifiedSketchVector)
                 if EstimatedScore-BenchScore > Improvement:
                     self.DataSets[trans_name]['target'].append(UsefulTag)
                     print('trans_name:',trans_name[:3],'Y:',sample,'score',EstimatedScore)
-                    num=num+1
+                    positive_num=positive_num+1
                 else:
                     self.DataSets[trans_name]['target'].append(UselessTag)
                     print('trans_name:',trans_name[:3],'N:',sample,'score',EstimatedScore)
+                    negative_num=negative_num+1
     
     
     def generate_binary_training_samples(self, OriginalSet, BinNum, SampleNum, Improvement):
-        num=0
-        # 分割数据集为训练集和测试集
-        OriginalTrainSet, OriginalTestSet = splitDataSet(OriginalSet, 0.8)
+        negative_num,positive_num=0,0
         # 计算基准准确率
         BenchClassifier = RandomForestClassifier(n_estimators=10)
-        BenchScore = cross_val_score(BenchClassifier, OriginalTestSet['data'], OriginalTestSet['target'], cv=10,scoring='f1').mean()
+        BenchScore = cross_val_score(BenchClassifier, OriginalSet['data'], OriginalSet['target'], cv=5,scoring='f1').mean()
         print('binary_benchscore',BenchScore)
         # 两个标签,左边是有用,右边是无用
         UsefulTag, UselessTag = np.array([1, 0]), np.array([0, 1])
@@ -171,45 +164,49 @@ class transformations:
             if sample % 10 ==0:
                 print('-------------------------------------')
                 print('Trained Samples: ',sample)
-                print('positive_num:',num)
+                print('binary_positive_num:',positive_num)
+                print('binary_negative_num:',negative_num)
                 print('-------------------------------------')      
                             
             for trans_name, trans_verb in self.binary_transformation_map.items():
+                #print('verb:',trans_verb)
+                #print('feature:',feature)                
                 feature_t = trans_verb(feature_1, feature_2)
                 if len(feature_t)==0:
                     continue
                 QuantifiedSketchVector = getSketch(
                     feature_t, BinNum, ClassNum, OriginalSet['target'])
+                if QuantifiedSketchVector is None:
+                    continue
                 # 产生转化后的数据集
                 EstimatedSet = getTransformedSet(OriginalSet, [f1, f2], col_num)
-                EstimatedTrainSet, EstimatedTestSet = splitDataSet(
-                    EstimatedSet, 0.8)
-                    
-                    
-                BenchClassifier = RandomForestClassifier(n_estimators=10)
-                BenchScore = cross_val_score(BenchClassifier, OriginalTestSet['data'], OriginalTestSet['target'], cv=10,scoring='f1').mean()
+                EstimatedClassifier = RandomForestClassifier(n_estimators=10)
+                EstimatedScore = cross_val_score(EstimatedClassifier, EstimatedSet['data'], EstimatedSet['target'], cv=5,scoring='f1').mean()
                 
                 self.DataSets[trans_name]['data'].append(QuantifiedSketchVector)
                 if EstimatedScore-BenchScore > Improvement:
                     self.DataSets[trans_name]['target'].append(UsefulTag)
                     print('trans_name:',trans_name[:3],'Y:',sample,'score',EstimatedScore)
-                    num=num+1
+                    positive_num=positive_num+1
                 else:
                     self.DataSets[trans_name]['target'].append(UselessTag)
                     print('trans_name:',trans_name[:3],'N:',sample,'score',EstimatedScore)
+                    negative_num=negative_num+1
 
     
-    def generate_training_samples(self, OriginalSet, hyparams):
+    def generate_training_samples(self, OriginalSets, hyparams):
         BinNum, UNum,BNum, Improvement = hyparams['bin_num'], hyparams['unary_sample_num'],hyparams['binary_sample_num'],hyparams['improvement']
-        self.generate_unary_training_samples(OriginalSet, BinNum, UNum, Improvement)
-        self.generate_binary_training_samples(OriginalSet, BinNum, BNum, Improvement)
+        for OriginalSet in OriginalSets:
+            print('--------------------------------------')
+            print('DataSet Name:',OriginalSet['name'])
+            self.generate_unary_training_samples(OriginalSet, BinNum, UNum, Improvement)
+            self.generate_binary_training_samples(OriginalSet, BinNum, BNum, Improvement)
 
         #对数据集内数据进行重新设置维数使其输入mlp
         for trans_name,trans_set in self.DataSets.items():
             trans_set['data']=list(map(lambda x: x.flatten(),trans_set['data']))
             trans_set['data']=np.array(trans_set['data'])
-        
-        trans_set['target']=np.array(trans_set['target'])
+            trans_set['target']=np.array(trans_set['target'])
 
     
 

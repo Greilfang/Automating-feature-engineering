@@ -9,7 +9,7 @@ import pickle
 # 设置超参数
 hyparams = {
     'bin_num': 10,
-    'improvement': 0.005,
+    'improvement': 0.01,
     'unary_sample_num': 50,
     'binary_sample_num': 150,
     'raw_root':'./raw'
@@ -23,8 +23,6 @@ if __name__ == "__main__":
     Transformations = transformations()
     Transformations.upload()
 
-    # 产生数据集
-    for OriginalSet in OriginalSets:
-        print('SetName:',OriginalSet['name'])
-        Transformations.generate_training_samples(OriginalSet=OriginalSet,hyparams=hyparams)
+    # 产生QSA数据集
+    Transformations.generate_training_samples(OriginalSets=OriginalSets,hyparams=hyparams)
     save_transformations(Transformations, path='./model/transformations')
