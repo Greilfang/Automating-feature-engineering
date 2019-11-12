@@ -43,7 +43,8 @@ def getTransformedSet(DataSet, features, feature_t):
 
 # 储存每个MLP的数据集
 class transformations:
-    def __init__(self):
+    def __init__(self,hyparams):
+        self.BinNum = hyparams['bin_num']
         self.DataSets = {
             'sum': {'data': [], 'target': [], 'name': 'sum'},
             'substraction': {'data': [], 'target': [], 'name': 'substraction'},
@@ -211,14 +212,30 @@ class transformations:
     def predict(self,TargetSet,attempts,threshold):
         probs=[]
         col_num = TargetSet['data'].shape[1]
+        ClassNum = len(np.unique(TargetSet['target']))
         for attempt in range(attempts):
+            f1, f2 = random.sample([i for i in range(col_num)], 2)
+            feature_1,feature_2=TargetSet['data'][:,f1],TargetSet['data'][:,f2]
             for name,MLP in self.binary_MLPs.items():
-                f1, f2 = random.sample([i for i in range(col_num)], 2)
-                
-            
-            
+                feature_t=self.binary_transformation_map[name](feature_1,feature_2)
+                QuantifiedSketchVector=getSketch(feature_t,self.BinNum,ClassNum,TargetSet['target'])
+                if QuantifiedSketchVector is None:
+                    continue
+                prob = MLP.predic_proba(QuantifiedSketchVector)
+                probs.append(prob)
+            # 二元变化结束,开始一元变化
+            f = random.sample([i for i in range(col_num)],1)[0]
+            feature = TargetSet['data'][:,f]            
             for name,MLP in self.unary_MLPs.items():
-                f = random.sample([i for i in range(col_num)],1)
+                QuantifiedSketchVector=getSketch(feature,self.BinNum,ClassNum,TargetSet['target'])
+                if QuantifiedSketchVector is None:
+                    continue
+                prob = MLP.predic_proba(QuantifiedSketchVector)
+                probs.append(prob)
+            # 输出概率
+            print(probs)
+
+
 
     
 

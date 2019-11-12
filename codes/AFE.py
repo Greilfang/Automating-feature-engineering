@@ -23,7 +23,7 @@ if __name__ == "__main__":
     OriginalSets = convert(root)
 
     # 加载对应的transformation集合
-    Transformations = transformations()
+    Transformations = transformations(hyparams)
     Transformations.upload()
 
     # 产生QSA数据集
