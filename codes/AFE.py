@@ -12,7 +12,10 @@ hyparams = {
     'improvement': 0.01,
     'unary_sample_num': 50,
     'binary_sample_num': 150,
-    'raw_root':'./raw'
+    'raw_root':'./raw',
+
+    'pre_trained_path':'./model/transformations',
+    'save_path':'./model/transformations'
 }
 
 if __name__ == "__main__":

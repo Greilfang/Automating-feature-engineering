@@ -207,6 +207,18 @@ class transformations:
             trans_set['data']=list(map(lambda x: x.flatten(),trans_set['data']))
             trans_set['data']=np.array(trans_set['data'])
             trans_set['target']=np.array(trans_set['target'])
+    
+    def predict(self,TargetSet,attempts,threshold):
+        probs=[]
+        col_num = TargetSet['data'].shape[1]
+        for attempt in range(attempts):
+            for name,MLP in self.binary_MLPs.items():
+                f1, f2 = random.sample([i for i in range(col_num)], 2)
+                
+            
+            
+            for name,MLP in self.unary_MLPs.items():
+                f = random.sample([i for i in range(col_num)],1)
 
     
 
