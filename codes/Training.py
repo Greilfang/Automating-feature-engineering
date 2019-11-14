@@ -21,7 +21,7 @@ def training(Transformations):
     # 训练 二元变化MLP
     for trans_name,binary_MLP in Transformations.binary_MLPs.items():
         TrainingData = TrainingDatas[trans_name]
-        assert(isinstance(unary_MLP,MLPClassifier))
+        assert(isinstance(binary_MLP,MLPClassifier))
         binary_MLP.fit(TrainingData['data'],TrainingData['target'])
         print(trans_name,' training finish ')
 

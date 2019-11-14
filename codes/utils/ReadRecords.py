@@ -45,3 +45,6 @@ def convert(root):
                 }
             OriginalSets.append(OriginalSet)
     return OriginalSets
+
+# print(read_data_features('../../raw/hmeq.csv'))
+# convert('../../raw/')
