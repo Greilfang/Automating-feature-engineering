@@ -14,8 +14,10 @@ def getSketch(feature_t, BinNum, cls_num, classes):
     QuantifiedSketchVector = np.zeros((cls_num,BinNum+1))
     # 0-1 normalization
     Supr, Infr = max(feature_t), min(feature_t)
+    #print('Supr:',Supr,'Infr:',Infr)
     Blank = Supr-Infr
     if Blank == 0:return None
+    #print('Bkank:',Blank)
     for fvalue, cvalue in zip(feature_t, classes):
         idx = int((fvalue-Infr)/Blank*BinNum)
         QuantifiedSketchVector[cvalue,idx] = QuantifiedSketchVector[cvalue,idx]+1
@@ -45,7 +47,6 @@ def getTransformedSet(DataSet, features, feature_t):
 class transformations:
     def __init__(self,hyparams):
         self.BinNum = hyparams['bin_num'] # 本句报错为该类无BinNum属性
-        #self.BinNum = 10
         self.DataSets = {
             'sum': {'data': [], 'target': [], 'name': 'sum'},
             'substraction': {'data': [], 'target': [], 'name': 'substraction'},
@@ -87,32 +88,27 @@ class transformations:
         # 初始化MLP感知器用于训练
         for tran in self.binary_transformation_map.keys():
             self.binary_MLPs[tran] = MLPClassifier(
-                hidden_layer_sizes=(64), activation='relu', solver='sgd', alpha=0.0001, batch_size='auto',
+                hidden_layer_sizes=(128), activation='relu', solver='sgd', alpha=0.0001, batch_size='auto',
                 learning_rate='constant', learning_rate_init=0.001, power_t=0.5, max_iter=20000 ,shuffle=True,
                 random_state=1, tol=0.0001, verbose=False, warm_start=False, momentum=0.9, nesterovs_momentum=True,
                 early_stopping=False, beta_1=0.9, beta_2=0.999, epsilon=1e-08)
 
         for tran in self.unary_transformation_map.keys():
             self.unary_MLPs[tran] = MLPClassifier(
-                hidden_layer_sizes=(64),activation='relu', solver='sgd', alpha=0.0001, batch_size='auto',
+                hidden_layer_sizes=(128),activation='relu', solver='sgd', alpha=0.0001, batch_size='auto',
                 learning_rate='constant', learning_rate_init=0.001, power_t=0.5, max_iter=20000, shuffle=True,
                 random_state=1, tol=0.0001, verbose=False, warm_start=False, momentum=0.9, nesterovs_momentum=True,
                 early_stopping=False, beta_1=0.9, beta_2=0.999, epsilon=1e-08)
 
-    def generate_unary_training_samples(self, OriginalSet, SampleNum, Improvement):
+    def generate_unary_training_samples(self, OriginalSet, SampleNum, Improvement,BenchScore):
         negative_num,positive_num=0,0
-        # 分割数据集为训练集和测试集
-        #OriginalTrainSet, OriginalTestSet = splitDataSet(OriginalSet, 0.8)
-        # 计算基准准确率
-        BenchClassifier = RandomForestClassifier(n_estimators=10)
-        BenchScore = cross_val_score(BenchClassifier, OriginalSet['data'], OriginalSet['target'], cv=5,scoring='f1').mean()
-        print('unary_benchscore:',BenchScore)
         # 两个标签,左边是有用,右边是无用
         UsefulTag, UselessTag = np.array([1]),np.array([0])
         col_num = OriginalSet['data'].shape[1]
         ClassNum = len(np.unique(OriginalSet['target']))
         for sample in range(SampleNum):
             f = random.sample([i for i in range(col_num)], 1)[0]
+            print(OriginalSet['attributes'][f])
             feature = OriginalSet['data'][:, f]
             # 遍历每一种变换,为每一个一元MLP增加样本
             if sample % 10 ==0:
@@ -137,7 +133,6 @@ class transformations:
                 EstimatedClassifier = RandomForestClassifier(n_estimators=10)
                 EstimatedScore = cross_val_score(EstimatedClassifier, EstimatedSet['data'], EstimatedSet['target'], cv=5,scoring='f1').mean()
 
-
                 self.DataSets[trans_name]['data'].append(QuantifiedSketchVector)
                 if EstimatedScore-BenchScore > Improvement:
                     self.DataSets[trans_name]['target'].append(UsefulTag)
@@ -149,12 +144,10 @@ class transformations:
                     negative_num=negative_num+1
     
     
-    def generate_binary_training_samples(self, OriginalSet,SampleNum, Improvement):
+    def generate_binary_training_samples(self, OriginalSet,SampleNum, Improvement,BenchScore):
+        print('check bench:',BenchScore)
+        print('check_improve:',Improvement)
         negative_num,positive_num=0,0
-        # 计算基准准确率
-        BenchClassifier = RandomForestClassifier(n_estimators=10)
-        BenchScore = cross_val_score(BenchClassifier, OriginalSet['data'], OriginalSet['target'], cv=5,scoring='f1').mean()
-        print('binary_benchscore',BenchScore)
         # 两个标签,左边是有用,右边是无用
         UsefulTag, UselessTag = np.array([1]), np.array([0])
         col_num = OriginalSet['data'].shape[1]
@@ -199,10 +192,21 @@ class transformations:
     def generate_training_samples(self, OriginalSets, hyparams):
         UNum,BNum, Improvement = hyparams['unary_sample_num'],hyparams['binary_sample_num'],hyparams['improvement']
         for OriginalSet in OriginalSets:
+            Improvement=hyparams['improvement']
             print('--------------------------------------')
             print('DataSet Name:',OriginalSet['name'])
-            self.generate_binary_training_samples(OriginalSet, BNum, Improvement)
-            self.generate_unary_training_samples(OriginalSet, UNum, Improvement)
+            # 计算基准准确率
+            BenchClassifier = RandomForestClassifier(n_estimators=10)
+            BenchScore = cross_val_score(BenchClassifier, OriginalSet['data'], OriginalSet['target'], cv=5,scoring='f1').mean()
+            print('Bench Score:',BenchScore)
+            
+            if BenchScore>0.95:Improvement=Improvement-0.004
+            elif BenchScore>0.925:Improvement=Improvement-0.003
+            elif BenchScore>0.9:Improvement=Improvement-0.002
+            elif BenchScore>0.85:Improvement=Improvement-0.001
+            
+            self.generate_binary_training_samples(OriginalSet, BNum, Improvement,BenchScore)
+            self.generate_unary_training_samples(OriginalSet, UNum, Improvement,BenchScore)
 
         #对数据集内数据进行重新设置维数使其输入mlp
         for trans_name,trans_set in self.DataSets.items():
@@ -219,7 +223,7 @@ class transformations:
             fs=random.sample([i for i in range(col_num)], 2)
             random.shuffle(fs)
             f1,f2=fs
-            print('f1f2:',TargetSet['attributes'][f1],TargetSet['attributes'][f2])
+            #print('f1f2:',TargetSet['attributes'][f1],TargetSet['attributes'][f2])
             feature_1,feature_2=TargetSet['data'][:,f1],TargetSet['data'][:,f2]
             useful_features = None
             for name,MLP in self.binary_MLPs.items():# 针对不同的变换，寻找对应的MLP
@@ -230,44 +234,58 @@ class transformations:
                 if QuantifiedSketchVector is None:
                     continue
                 QuantifiedSketchVector=QuantifiedSketchVector.flatten().reshape(1,-1)
-                print(name[:3],QuantifiedSketchVector[:,:6])
-                useful_prob = MLP.predict_proba(QuantifiedSketchVector)[1]
-                useful_prob = MLP.predict(QuantifiedSketchVector)                
+                #print(name[:3],QuantifiedSketchVector[:,:9])
+                useful_prob = MLP.predict_proba(QuantifiedSketchVector)[0][1]
+                #useful_prob = MLP.predict(QuantifiedSketchVector)                
                 #print('useful_prob:',useful_prob)
                 probs.append(useful_prob)
-                '''
                 if useful_prob > threshold:
-                    useful_features=feature_t if useful_features is None else np.column_stack((useful_features,feature_t))
-                '''
+                    #useful_features=feature_t if useful_features is None else np.column_stack((useful_features,feature_t))
+                    print(TargetSet['attributes'][f1],' ',name,' ',TargetSet['attributes'][f2])
+                
             
             # 二元变化结束,开始一元变化
             f = random.sample([i for i in range(col_num)],1)[0]
-            print('f:',TargetSet['attributes'][f])
+            #print('f:',TargetSet['attributes'][f])
             feature = TargetSet['data'][:,f]
             for name,MLP in self.unary_MLPs.items():
                 feature_t=self.unary_transformation_map[name](feature)
                 if len(feature_t) == 0:
                     continue
-                QuantifiedSketchVector=getSketch(feature,self.BinNum,ClassNum,TargetSet['target'])
+                QuantifiedSketchVector=getSketch(feature_t,self.BinNum,ClassNum,TargetSet['target'])
                 if QuantifiedSketchVector is None:
                     continue
                 QuantifiedSketchVector=QuantifiedSketchVector.flatten().reshape(1,-1)    
-                print(name[:3],QuantifiedSketchVector[:,:6])         
-                useful_prob = MLP.predict_proba(QuantifiedSketchVector)[1]
-                #useful_prob = MLP.predict_proba(QuantifiedSketchVector)              
+                #print(name[:3],QuantifiedSketchVector[:,:9])         
+                useful_prob = MLP.predict_proba(QuantifiedSketchVector)[0][1]
+                #useful_prob = MLP.predict(QuantifiedSketchVector)              
                 #print('useful_prob:',useful_prob)
                 probs.append(useful_prob)
-                '''
+
                 if useful_prob > threshold:
-                    useful_features=feature_t if useful_features is None else np.column_stack((useful_features,feature_t))
-                '''
+                    #useful_features=feature_t if useful_features is None else np.column_stack((useful_features,feature_t))
+                    print(name,' ',TargetSet['attributes'][f])
+                    pass
+            
             # 输出概率
-            print('attempt:',attempt,probs)
+            print('attempt:',attempt,np.around(probs,decimals=4))
             print('-'*30)
             probs=[]
 
+    def renewMLPs(self,kernels):
+        for tran in self.binary_transformation_map.keys():
+            self.binary_MLPs[tran] = MLPClassifier(
+                hidden_layer_sizes=(kernels), activation='relu', solver='sgd', alpha=0.0001, batch_size='auto',
+                learning_rate='constant', learning_rate_init=0.001, power_t=0.5, max_iter=20000 ,shuffle=True,
+                random_state=1, tol=0.0001, verbose=False, warm_start=False, momentum=0.9, nesterovs_momentum=True,
+                early_stopping=False, beta_1=0.9, beta_2=0.999, epsilon=1e-08)
 
-
+        for tran in self.unary_transformation_map.keys():
+            self.unary_MLPs[tran] = MLPClassifier(
+                hidden_layer_sizes=(kernels),activation='relu', solver='sgd', alpha=0.0001, batch_size='auto',
+                learning_rate='constant', learning_rate_init=0.001, power_t=0.5, max_iter=20000, shuffle=True,
+                random_state=1, tol=0.0001, verbose=False, warm_start=False, momentum=0.9, nesterovs_momentum=True,
+                early_stopping=False, beta_1=0.9, beta_2=0.999, epsilon=1e-08)
     
 
 
@@ -391,6 +409,8 @@ class transformations:
 
     def normalize(self, column):
         maxv,minv=np.max(column),np.min(column)
+        if maxv==minv:
+            return []
         return -1 + 2/(maxv-minv) * (column-minv)
 
     def upload(self):
@@ -403,7 +423,7 @@ class transformations:
         self.unary_transformation_map['log'] = self.log
         self.unary_transformation_map['square_root'] = self.square_root
         self.unary_transformation_map['square']=self.square
-        self.unary_transformation_map['frequency'] = self.round
+        self.unary_transformation_map['frequency'] = self.frequency
         self.unary_transformation_map['round'] = self.round
         self.unary_transformation_map['tanh'] = self.tanh
         self.unary_transformation_map['sigmoid'] = self.sigmoid
