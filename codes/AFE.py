@@ -8,10 +8,10 @@ import pickle
 
 # 设置超参数
 hyparams = {
-    'bin_num': 100,
+    'bin_num': 200,
     'improvement': 0.01,
-    'unary_sample_num': 10,
-    'binary_sample_num': 20,
+    'unary_sample_num': 60,
+    'binary_sample_num': 250,
     'raw_root':'../raw',
 
     'pre_trained_path':'./model/transformations',

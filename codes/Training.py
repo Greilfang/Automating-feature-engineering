@@ -30,5 +30,7 @@ def training(Transformations):
 
 if __name__ == "__main__":
     Transformations = load_transformations('model/transformations')
+    #Transformations.renewMLPs(128)
     training(Transformations)
     save_transformations(Transformations,'model/transformations')
+

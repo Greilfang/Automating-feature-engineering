@@ -4,7 +4,7 @@ from sklearn.model_selection import cross_val_score
 import pandas as pd
 hyparams={
     'load_path':'./model/transformations',
-    'data_path':'./utils/CreditData.csv',
+    'data_path':'./utils/dataset_37_diabetes.csv',
     'root_path':'../ValSet/',
     'threshold':0.9
 }
@@ -27,4 +27,4 @@ if __name__ == "__main__":
     # 加载数据集
     TargetSet = getTargetDataSet(hyparams['data_path'])
     threshold = hyparams['threshold']
-    model.predict(TargetSet,5 ,threshold)
+    model.predict(TargetSet,200 ,threshold)
