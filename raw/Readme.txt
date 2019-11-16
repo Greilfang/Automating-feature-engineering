@@ -1,0 +1,1 @@
+This folder is the default place to hold original data for production of QSA.
